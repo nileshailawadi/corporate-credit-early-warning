@@ -86,6 +86,50 @@ recent data.
 
 ---
 
+## The model ladder
+
+Each rung has to beat the one below it. Walk-forward 2012–2018, train from 2003, 206 defaults:
+
+| | Gini | Top-decile capture | PR-AUC | Brier |
+|---|---|---|---|---|
+| 1 Altman Z″, unfitted | 0.495 | 0.184 | 0.021 | — |
+| 2 WOE logistic scorecard | 0.788 | 0.665 | 0.106 | 0.124 |
+| **3 LightGBM** | **0.829 ± 0.003** | **0.727** | **0.208** | 0.009 |
+| 4 Discrete-time hazard (cloglog + tenure baseline) | 0.793 | 0.665 | 0.123 | 0.009 |
+
+Three things worth reading off this table.
+
+**The 1968 formula gets half the Gini for zero parameters — but only 18% of the tail.** Altman Z″
+ranks the population respectably and is nearly useless where a watchlist actually operates. Gini
+alone would have hidden that; capture-at-decile is the metric that exposes it.
+
+**Boosting is worth +0.041 Gini and +6.2 points of capture over the scorecard.** Real, but that is
+the whole case for it. A bank weighing that against the model-risk overhead of a non-parametric
+model is making a defensible decision either way, and the scorecard is what would actually clear
+validation.
+
+**The survival framing buys almost nothing here — +0.005 Gini over the same inputs.** Once
+eligibility already handles censoring and the horizon is one year, a discrete-time hazard reduces to
+a binary classifier with a tenure covariate. Recorded as a negative result rather than dropped.
+
+The Brier column is not yet a calibration result. The scorecard's 0.124 against LightGBM's 0.009 is
+almost entirely `class_weight='balanced'`, which inflates predicted probabilities by roughly the
+inverse base rate. It costs nothing in ranking and destroys the probabilities. Fixing that is W5.
+
+### The bug this rung caught
+
+`altman_z` is *by construction* `6.56·wc_ta + 3.26·re_ta + 6.72·ebit_ta + 1.05·mve_tl` — an exact
+linear dependency inside the feature library. Gradient boosting is indifferent to it. Maximum
+likelihood is not: the first hazard fit returned a Gini of **0.06**, near chance, from a singular
+design matrix. A column-pivoted QR now selects a maximal independent subset before fitting, and a
+test asserts the dependency still exists so the guard cannot be removed by accident.
+
+A second, subtler version: on raw standardised ratios the same rung scored 0.551, and the gap was
+the skew of the untransformed inputs rather than anything about hazard models. It is fitted on
+WOE-transformed inputs so that rung 4 differs from rung 2 *only* in the survival framing.
+
+---
+
 ## Honest limitations
 
 - **The repair's integrity case is closed; its performance case is not.** Identities go from 0.56 to
@@ -121,7 +165,8 @@ make all
 ```
 
 `make all` clones the source panel, runs the audit, repairs the scale corruption, builds
-point-in-time labels, and runs the walk-forward evaluation. Roughly 10 minutes on a laptop.
+point-in-time labels, runs the walk-forward evaluation and fits the model ladder. Roughly 20
+minutes on a laptop.
 
 Individual stages:
 
@@ -131,6 +176,7 @@ make audit      # variable-mapping recovery + corruption quantification
 make repair     # -> outputs/clean_panel.parquet
 make labels     # -> outputs/labelled_panel.parquet
 make evaluate   # walk-forward results
+make ladder     # the four-rung model comparison
 make test       # pytest
 ```
 
@@ -144,6 +190,7 @@ src/
   features.py        credit ratio library: levels, trajectories, industry-relative
   leakage.py         the four-arm evaluation-design experiment
   evaluate.py        walk-forward protocol and the label-capture test
+  ladder.py          the four-rung model comparison, WOE scorecard included
   verify_repair.py   does the repair change anything that matters?
 tests/               invariants the repair and labels must satisfy
 docs/findings.md     the audit written up in full

@@ -108,3 +108,41 @@ def test_reliable_window_has_higher_capture_than_the_early_years(lab):
     early = ex[ex.fyear < RELIABLE_FROM].ever_fails.mean()
     late = ex[(ex.fyear >= RELIABLE_FROM) & (ex.fyear < PANEL_END)].ever_fails.mean()
     assert early < late / 2, f'early {early:.3f} vs late {late:.3f}'
+
+
+# ------------------------------------------------------------------ model ladder
+def test_feature_library_contains_an_exact_linear_dependency(panel):
+    """Regression guard for the bug that silently broke the hazard rung.
+
+    altman_z IS 6.56*wc_ta + 3.26*re_ta + 6.72*ebit_ta + 1.05*mve_tl, so any
+    maximum-likelihood fit on the raw design matrix is singular.  If this assertion ever
+    fails the dependency has been removed and the QR pivot in ladder.rung_hazard can go;
+    while it holds, the pivot is load-bearing.
+    """
+    from features import build
+    F, _ = build(panel, extended=True)
+    z = F.altman_z - (6.56 * F.wc_ta + 3.26 * F.re_ta + 6.72 * F.ebit_ta + 1.05 * F.mve_tl)
+    assert np.nanmax(np.abs(z)) < 1e-6
+    A = F[['altman_z', 'wc_ta', 're_ta', 'ebit_ta', 'mve_tl']].dropna().to_numpy()
+    assert np.linalg.matrix_rank(A) == 4, 'expected rank deficiency'
+
+
+def test_woe_is_fitted_on_training_rows_only(panel):
+    """WOE edges must come from train; a test row outside the training range must still
+    map to a finite score rather than leaking a test-derived bin edge."""
+    from ladder import WOE
+    X = pd.DataFrame({'a': np.arange(1000.0)})
+    y = (np.arange(1000) % 50 == 0).astype(int)
+    w = WOE().fit(X.iloc[:500], y[:500])
+    out = w.transform(pd.DataFrame({'a': [-1e9, 1e9, np.nan]}))
+    assert np.isfinite(out).all()
+    assert w.edges_['a'].max() <= 500
+
+
+def test_ladder_ranks_better_than_chance():
+    lad = pathlib.Path('outputs/model_ladder.csv')
+    if not lad.exists():
+        pytest.skip('run `make ladder` first')
+    r = pd.read_csv(lad)
+    assert (r.gini > 0.4).all(), 'a rung is near chance - check for a singular design'
+    assert r.gini.max() > 0.75
