@@ -202,11 +202,48 @@ Rolled up to rating categories, it holds:
 Monotone in observed default rate, and six of seven categories contain their own predicted PD inside
 the observed interval.
 
-**The seventh is the one that matters.** CCC-C predicts 9.4% and defaults at 12.8%, with the
-interval excluding the prediction. The model under-states risk in the worst grade — the one a
-watchlist is built out of, and the one feeding any expected-loss number. Being conservative in the
-other direction would be unremarkable; this is a finding, and fixing it (a tail-weighted calibrator,
-or a separate calibration segment below B−) is the first item of unfinished work.
+**The seventh was the one that mattered.** CCC-C predicted 9.4% and defaulted at 12.8%, interval
+excluding the prediction — the model under-stated risk in the worst grade, the one a watchlist is
+built out of. That is now fixed, and how it was fixed is the more interesting part.
+
+### Diagnosing the tail, and a harness bug caught on the way
+
+Two candidate causes needed different fixes: isotonic *tail compression* (a step function cannot
+extrapolate) or out-of-time *drift*. Three calibrator families were compared on identical base
+scores — isotonic, Platt, and isotonic with a logistic tail. None of them fixed it.
+
+The informative arm was a **conservatism overlay estimated in-sample**: it clipped to 1.0. The tail
+is not under-predicted on training data *at all*. Out of time it is, by a median of **1.31×**, in
+six of seven test years. So it is neither tail compression (which would show in-sample) nor
+concentrated drift (which would show in one or two years) — it is a generalisation gap, and no
+calibrator fitted on in-sample data can see it.
+
+So estimate the overlay **out of time**: fit on ≤ T−2, measure the CCC-band ratio on the held-out
+year T−1, apply it to T. The multipliers it produces are strikingly stable:
+
+| Test year | 2012 | 2013 | 2014 | 2015 | 2016 | 2017 | 2018 |
+|---|---|---|---|---|---|---|---|
+| multiplier | 1.28 | 1.30 | 1.51 | 1.36 | 1.20 | 1.25 | 1.00 * |
+
+*\* floored — the prior year came in below its own prediction, and the overlay never adjusts down.*
+
+| Calibrator | Portfolio ratio | Gini | CCC-C predicted | observed | covered |
+|---|---|---|---|---|---|
+| isotonic | 0.970 | 0.8366 | 9.47% | 12.62% | no |
+| isotonic + logit tail | 0.955 | 0.8373 | 9.10% | 13.04% | no |
+| platt | 0.977 | 0.8378 | 10.50% | 14.20% | no |
+| in-sample overlay | 0.970 | 0.8366 | 9.47% | 12.62% | no |
+| **isotonic + out-of-time overlay** | 1.079 | 0.8361 | **10.92%** | 11.58% | **yes** |
+
+**All seven categories now contain their own predicted PD**, up from six. The cost is a portfolio
+ratio of 1.079 — mildly conservative overall, which is the right direction for a credit model — and
+essentially no Gini (0.8361 against 0.8366).
+
+The harness itself needed fixing first. An earlier version pooled out-of-fold scores, fitted one
+calibrator on them, and applied it to a model refitted on all of train. Full-train scores are
+sharper, so portfolio PD came out at **1.69× observed** while every component looked individually
+correct. `tail_calibration.py` now carries a **control arm that must reproduce the W5 result**
+before any comparison is believed — it reads 0.970 against W5's 0.967.
 
 ### One-year migration, by category (row-normalised, %)
 
@@ -236,15 +273,17 @@ transition matrix has. The AAA row rests on 21 observations and should not be re
 - **Exits are pooled as one censoring event.** The data cannot distinguish acquisition from
   delisting from loss of coverage. If exit correlates with credit quality, the hazard is biased.
   Treating exits as survivals — the alternative — is strictly worse.
-- **CCC-C is miscalibrated.** 9.4% predicted against 12.8% observed, interval excluding the
-  prediction. Under-stating risk in the worst grade is the wrong direction to be wrong in.
+- **The out-of-time overlay rests on one held-out year per fold.** Stable across seven of them,
+  but it is one year's estimate each time, and it is floored rather than free to adjust downward.
 - **The notch scale is presented as a negative result.** 10 of 21 notches hold fewer than 5
   defaults. Use the categories.
 - **The external register is a different population.** US Courts counts every business Chapter 11
   filer, private companies included. The rank comparison survives that; the implied-shortfall
   estimate does not, and is labelled accordingly.
-- **Reason codes are not built yet.** SHAP attributions mapped to analyst-readable text is the
-  remaining half of W5.
+- **Four of seventeen drivers contradict credit intuition** on one-way partial dependence — more
+  long-term debt reads as *lower* PD. Explicable (access to term debt is itself a credit signal),
+  but one-way PDP holds correlated features at observed values, so it is a question to answer, not
+  a verdict.
 
 ### A note on seeds
 
@@ -279,6 +318,8 @@ make labels     # -> outputs/labelled_panel.parquet
 make evaluate   # walk-forward results
 make ladder     # the four-rung model comparison
 make calibrate  # calibrated PDs, master scale, migration matrix
+make tail       # calibrator comparison + out-of-time overlay
+make watchlist  # scored FY2018 book with reason codes
 make register   # external validation of the label-capture finding
 make test       # pytest
 ```
@@ -295,10 +336,13 @@ src/
   evaluate.py        walk-forward protocol and the label-capture test
   ladder.py          the four-rung model comparison, WOE scorecard included
   calibrate.py       isotonic calibration, 21-notch master scale, migration matrix
+  tail_calibration.py  four calibrators + the out-of-time conservatism overlay
+  reasons.py         SHAP reason codes and the conceptual-soundness check
+  watchlist.py       the scored FY2018 book the dashboard renders
   external_register.py  Finding 04 against US Courts Chapter 11 filing statistics
   verify_repair.py   does the repair change anything that matters?
 tests/               invariants the repair and labels must satisfy
-docs/findings.md     the audit written up in full
+notebooks/           the public notebook, generated by make_notebook.py
 ```
 
 ## Data

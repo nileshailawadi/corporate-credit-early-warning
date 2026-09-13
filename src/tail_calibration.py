@@ -162,15 +162,54 @@ def calibrated_fold(Xtr, ytr, Xte, seed, n_splits=3):
     return {k: np.mean(v, axis=0) for k, v in parts.items()}
 
 
-def run(d, F, start=2003, horizon=1, seeds=SEEDS):
+OOT_NAME = 'isotonic + out-of-time overlay'
+
+
+def oot_multiplier(F, y, tr, T, seed, band=IsotonicOverlay.BAND, cap=IsotonicOverlay.CAP,
+                   fyear=None, min_n=30):
+    """Estimate the tail conservatism multiplier on a HELD-OUT YEAR, not in-sample.
+
+    The in-sample overlay clipped to 1.0 - the tail is not under-predicted on training
+    data at all - while out of time it is, by a median of 1.31x.  That is a
+    generalisation gap, not tail compression, and the only way to measure it before test
+    time is to hold out the most recent training year and measure it there.
+
+    Fit on [start, T-2], calibrate, score T-1, and read the observed/predicted ratio in
+    the CCC band off that year.  Returns 1.0 when the held-out year is too thin to
+    estimate from, which is the conservative failure mode (no adjustment, not a wild one).
+    """
+    inner = tr & (fyear <= T - 2)
+    val = tr & (fyear == T - 1)
+    if inner.sum() < 500 or val.sum() < 200:
+        return 1.0, 0, np.nan
+    p_val = calibrated_fold(F[inner], y[inner].to_numpy(), F[val], seed)['isotonic']
+    m = p_val >= band
+    if m.sum() < min_n or p_val[m].mean() <= 0:
+        return 1.0, int(m.sum()), np.nan
+    raw = y[val].to_numpy()[m].mean() / p_val[m].mean()
+    return float(np.clip(raw, 1.0, cap)), int(m.sum()), float(raw)
+
+
+def run(d, F, start=2003, horizon=1, seeds=SEEDS, with_oot=True):
     y = d[f'y_{horizon}y']
-    rows = []
+    rows, mults = [], []
     for T, tr, te in folds(d, start, horizon=horizon):
         ytr = y[tr].to_numpy()
         preds = {c.name: [] for c in CALIBRATORS}
+        if with_oot:
+            preds[OOT_NAME] = []
         for s in seeds:
-            for name, p in calibrated_fold(F[tr], ytr, F[te], s).items():
+            fold_preds = calibrated_fold(F[tr], ytr, F[te], s)
+            for name, p in fold_preds.items():
                 preds[name].append(p)
+            if with_oot:
+                mult, n_band, raw = oot_multiplier(F, y, tr, T, s, fyear=d.fyear)
+                mults.append(dict(fyear=T, seed=s, multiplier=mult,
+                                  n_in_band=n_band, raw_ratio=raw))
+                p = fold_preds['isotonic'].copy()
+                m = p >= IsotonicOverlay.BAND
+                p[m] = np.clip(p[m] * mult, 0, 1 - EPS)
+                preds[OOT_NAME].append(p)
         for name, ps in preds.items():
             rows.append(pd.DataFrame({
                 'calibrator': name, 'fyear': T,
@@ -179,7 +218,7 @@ def run(d, F, start=2003, horizon=1, seeds=SEEDS):
     r = pd.concat(rows, ignore_index=True)
     r['grade'] = grade(r.pd.to_numpy())
     r['category'] = r.grade.map(CATEGORY)
-    return r
+    return r, pd.DataFrame(mults)
 
 
 def tail_report(r):
@@ -204,8 +243,9 @@ if __name__ == '__main__':
     F, d = build(d, extended=True)
     F = F.reset_index(drop=True); d = d.reset_index(drop=True)
 
-    r = run(d, F)
+    r, mults = run(d, F)
     r.to_csv('outputs/tail_calibration.csv', index=False)
+    mults.to_csv('outputs/oot_multipliers.csv', index=False)
     pd.set_option('display.width', 240)
 
     # CONTROL: the isotonic arm must reproduce W5 before anything else is believable.
@@ -229,6 +269,14 @@ if __name__ == '__main__':
 
     print('\n\nCALIBRATOR COMPARISON')
     print(tail_report(r).round(4).to_string())
+
+    print('\n\nOUT-OF-TIME OVERLAY MULTIPLIERS (estimated on year T-1, applied to T)')
+    mm = mults.groupby('fyear').agg(multiplier=('multiplier', 'mean'),
+                                    raw_ratio=('raw_ratio', 'mean'),
+                                    n_in_band=('n_in_band', 'mean'))
+    print(mm.round(3).to_string())
+    print(f'\nmean applied multiplier {mults.multiplier.mean():.3f}  '
+          f'(clipped to 1.0 in {(mults.multiplier <= 1.0001).mean():.0%} of fold-seeds)')
 
     print('\n\nPER-CATEGORY, BEST CALIBRATOR BY CCC-C COVERAGE')
     rep = tail_report(r)

@@ -181,3 +181,38 @@ def test_rating_categories_are_monotone_in_observed_default_rate():
         pytest.skip('run `make calibrate` first')
     t = pd.read_csv(p)
     assert t.observed.is_monotonic_increasing, 'a rating scale that inverts is not a scale'
+
+
+# ------------------------------------------------------------------ tail calibration
+def test_out_of_time_overlay_never_adjusts_downward():
+    """A conservatism overlay that can shrink PDs is not a conservatism overlay."""
+    from tail_calibration import IsotonicOverlay
+    o = IsotonicOverlay()
+    s = np.linspace(0.001, 0.5, 400)
+    y = (np.random.RandomState(0).rand(400) < s).astype(int)
+    o.fit(s, y)
+    assert o.mult >= 1.0
+    assert o.mult <= IsotonicOverlay.CAP
+
+
+def test_overlay_only_touches_the_tail_band():
+    from tail_calibration import IsotonicOverlay
+    o = IsotonicOverlay()
+    s = np.linspace(0.001, 0.5, 400)
+    y = (np.random.RandomState(1).rand(400) < s * 2).astype(int)
+    o.fit(s, y)
+    p_iso = np.clip(o.iso.predict(s), 1e-7, 1 - 1e-7)
+    p = o.predict(s)
+    below = p_iso < IsotonicOverlay.BAND
+    assert np.allclose(p[below], p_iso[below]), 'overlay leaked below the CCC+ boundary'
+
+
+def test_calibrators_are_monotone_in_the_base_score():
+    """Any calibrator that reorders obligors has destroyed the ranking it was given."""
+    from tail_calibration import Isotonic, Platt, IsotonicTail
+    rs = np.random.RandomState(3)
+    s = np.sort(rs.uniform(0.0005, 0.6, 1200))
+    y = (rs.rand(1200) < s).astype(int)
+    for C in (Isotonic, Platt, IsotonicTail):
+        p = C().fit(s, y).predict(s.copy())
+        assert np.all(np.diff(p) >= -1e-9), f'{C.name} is not monotone in the base score'

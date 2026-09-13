@@ -1,0 +1,338 @@
+<title>Corporate Credit Watchlist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Source+Sans+3:wght@400;600&display=swap">
+
+<style>
+:root{
+  --paper:#F0F3F4; --surface:#FCFDFC; --sunk:#E7ECEE; --raise:#FFFFFF;
+  --ink:#121A20; --ink-2:#3B4A55; --muted:#687986;
+  --rule:#D3DBE0; --rule-soft:#E3E9EC;
+  --accent:#1A73B0; --signal:#C47A12; --critical:#A33B2C; --good:#2C6B51;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --body:"Source Sans 3",system-ui,-apple-system,Segoe UI,sans-serif;
+  --display:"Newsreader",Georgia,"Times New Roman",serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#11161A; --surface:#192026; --sunk:#151C21; --raise:#1F272E;
+  --ink:#E6ECEF; --ink-2:#B6C3CB; --muted:#8496A1;
+  --rule:#2B343B; --rule-soft:#222A30;
+  --accent:#4491CB; --signal:#BE811F; --critical:#D2705E; --good:#5E9E80;
+}}
+:root[data-theme="dark"]{
+  --paper:#11161A; --surface:#192026; --sunk:#151C21; --raise:#1F272E;
+  --ink:#E6ECEF; --ink-2:#B6C3CB; --muted:#8496A1;
+  --rule:#2B343B; --rule-soft:#222A30;
+  --accent:#4491CB; --signal:#BE811F; --critical:#D2705E; --good:#5E9E80;
+}
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;
+  line-height:1.55;margin:0;padding:0 20px;-webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums}
+.wrap{max-width:1180px;margin:0 auto;padding-block:0 80px}
+h1,h2,h3{margin:0;text-wrap:balance}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);font-weight:500}
+
+/* masthead */
+header.mast{padding-block:44px 22px;border-bottom:1px solid var(--rule)}
+h1{font-family:var(--display);font-size:clamp(30px,4.4vw,44px);font-weight:500;
+  letter-spacing:-.015em;margin-top:10px}
+.sub{color:var(--ink-2);margin-top:10px;max-width:66ch;font-size:16px}
+
+/* stat tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--rule-soft);border:1px solid var(--rule-soft);margin-top:26px}
+.tile{background:var(--surface);padding:14px 16px 15px}
+.tile dt{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--muted);margin:0}
+.tile dd{margin:6px 0 0;font-family:var(--mono);font-size:23px;font-weight:500;line-height:1.1}
+.tile .note{font-family:var(--body);font-size:12.5px;color:var(--muted);margin-top:4px}
+
+section{padding-block:40px 0}
+.sec-head{display:flex;align-items:baseline;gap:13px;margin-bottom:16px}
+.sec-head h2{font-family:var(--display);font-size:22px;font-weight:500}
+.sec-head .hr{flex:1;height:1px;background:var(--rule);min-width:16px}
+.lede{color:var(--ink-2);max-width:72ch;margin:0 0 18px}
+
+/* grade strip */
+.grades{border:1px solid var(--rule);background:var(--surface)}
+.grow{display:grid;grid-template-columns:78px 1fr 92px 92px 78px;gap:14px;align-items:center;
+  padding:9px 16px;border-bottom:1px solid var(--rule-soft)}
+.grow:last-child{border-bottom:0}
+.grow.head{background:var(--sunk);font-family:var(--mono);font-size:10px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12.5px;
+  font-weight:600;padding:2px 9px;border-radius:2px;background:var(--sunk);color:var(--ink)}
+.chip::before{content:'';width:3px;height:11px;border-radius:1px;background:var(--sev,var(--muted))}
+.sev-ok{--sev:var(--good)} .sev-watch{--sev:var(--signal)} .sev-bad{--sev:var(--critical)}
+.bar{height:9px;background:var(--sunk);position:relative;overflow:hidden;border-radius:1px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.num{font-family:var(--mono);font-size:13px;text-align:right;color:var(--ink-2)}
+.num.strong{color:var(--ink)}
+
+/* controls */
+.controls{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+.controls input[type=search],.controls select{font-family:var(--body);font-size:14px;
+  padding:7px 10px;border:1px solid var(--rule);background:var(--surface);color:var(--ink);
+  border-radius:3px;min-width:0}
+.controls input[type=search]{flex:1 1 200px;max-width:300px}
+.controls label.tog{display:inline-flex;align-items:center;gap:7px;font-size:14px;
+  color:var(--ink-2);cursor:pointer;user-select:none}
+.controls .count{font-family:var(--mono);font-size:12px;color:var(--muted);margin-left:auto}
+button.reset{font-family:var(--body);font-size:13.5px;padding:7px 12px;border:1px solid var(--rule);
+  background:var(--surface);color:var(--ink-2);border-radius:3px;cursor:pointer}
+button.reset:hover{color:var(--ink);border-color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* table */
+.tablewrap{border:1px solid var(--rule);background:var(--surface);overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:760px}
+thead th{font-family:var(--mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;background:var(--sunk);text-align:left;padding:9px 14px;
+  position:sticky;top:0;z-index:2;white-space:nowrap}
+thead th.sortable{cursor:pointer}
+thead th.sortable:hover{color:var(--ink)}
+thead th .ind{opacity:.45;font-size:9px}
+tbody tr{border-bottom:1px solid var(--rule-soft);cursor:pointer}
+tbody tr:hover{background:var(--sunk)}
+tbody tr.open{background:var(--sunk)}
+td{padding:9px 14px;vertical-align:top}
+td.r{font-family:var(--mono);font-size:12px;color:var(--muted)}
+td.co{font-family:var(--mono);font-size:13px;font-weight:500;white-space:nowrap}
+td.pd{font-family:var(--mono);font-size:13px;text-align:right;white-space:nowrap}
+td.sec{font-size:13.5px;color:var(--ink-2)}
+td.why{font-size:13px;color:var(--ink-2);max-width:400px}
+td.why .why2{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;padding:2px 7px;
+  border-radius:2px;white-space:nowrap}
+.badge.def{background:color-mix(in srgb,var(--critical) 15%,transparent);color:var(--critical);
+  border:1px solid color-mix(in srgb,var(--critical) 35%,transparent)}
+.badge.ok{color:var(--muted)}
+tr.detail td{padding:0 14px 14px 44px;border-bottom:1px solid var(--rule-soft);background:var(--sunk)}
+.reasons{list-style:none;margin:0;padding:0;display:grid;gap:5px}
+.reasons li{font-family:var(--mono);font-size:12.5px;color:var(--ink-2);
+  padding-left:15px;position:relative}
+.reasons li::before{content:'';position:absolute;left:0;top:7px;width:6px;height:6px;
+  border-radius:50%;background:var(--signal)}
+.empty{padding:30px 16px;text-align:center;color:var(--muted);font-size:14px}
+
+/* sector panel */
+.panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:22px}
+.panel{border:1px solid var(--rule);background:var(--surface);padding:16px 18px 18px}
+.panel h3{font-family:var(--body);font-size:15px;font-weight:600;margin-bottom:12px}
+.srow{display:grid;grid-template-columns:1fr 54px 62px;gap:10px;align-items:center;
+  padding:6px 0;border-bottom:1px solid var(--rule-soft);font-size:13.5px}
+.srow:last-child{border-bottom:0}
+.srow .nm{color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow .v{font-family:var(--mono);font-size:12.5px;text-align:right;color:var(--ink)}
+.srow .n{font-family:var(--mono);font-size:12px;text-align:right;color:var(--muted)}
+
+footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.9}
+.caveat{background:var(--sunk);border-left:3px solid var(--signal);padding:13px 16px;
+  margin-top:20px;font-size:13.5px;color:var(--ink-2);max-width:78ch}
+
+@media (max-width:620px){
+  body{font-size:14.5px}
+  .grow{grid-template-columns:66px 1fr 70px;gap:10px}
+  .grow .hide-s{display:none}
+  .controls .count{margin-left:0;width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+<header class="mast">
+  <div class="eyebrow">Backtest · fiscal <span id="yr"></span> cross-section</div>
+  <h1>Corporate Credit Watchlist</h1>
+  <p class="sub">Every US-listed obligor in the panel, scored on information available at
+  fiscal year end and ranked by twelve-month probability of default. Outcomes are shown
+  because this is a backtest — the model never saw them.</p>
+  <dl class="tiles" id="tiles"></dl>
+</header>
+
+<section>
+  <div class="sec-head"><h2>Book by rating grade</h2><div class="hr"></div></div>
+  <div class="grades" id="grades"></div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>The watchlist</h2><div class="hr"></div></div>
+  <p class="lede">The 250 highest-PD names, with the two strongest drivers behind each.
+  Click any row for its full reason codes — the three features pushing that obligor's
+  probability up hardest, from SHAP attributions on the fitted model.</p>
+  <div class="controls">
+    <input type="search" id="q" placeholder="Search obligor or reason…" aria-label="Search">
+    <select id="sector" aria-label="Filter by sector"><option value="">All sectors</option></select>
+    <select id="grade" aria-label="Filter by grade"><option value="">All grades</option></select>
+    <label class="tog"><input type="checkbox" id="defonly"> Defaulted only</label>
+    <button class="reset" id="reset" type="button">Reset</button>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th class="sortable" data-k="rank">#<span class="ind"></span></th>
+        <th class="sortable" data-k="company">Obligor<span class="ind"></span></th>
+        <th class="sortable" data-k="sector">Sector<span class="ind"></span></th>
+        <th class="sortable" data-k="grade">Grade<span class="ind"></span></th>
+        <th class="sortable" data-k="pd" style="text-align:right">12m PD<span class="ind"></span></th>
+        <th>Leading drivers</th>
+        <th class="sortable" data-k="defaulted">Outcome<span class="ind"></span></th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="empty" hidden>No obligors match these filters.</div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>Where the risk sits</h2><div class="hr"></div></div>
+  <div class="panels">
+    <div class="panel">
+      <h3>Sectors by mean PD</h3>
+      <div id="sectors"></div>
+    </div>
+    <div class="panel">
+      <h3>How to read this</h3>
+      <p style="font-size:13.5px;color:var(--ink-2);margin:0 0 12px">A watchlist exists because
+      a credit team can review a fraction of the book, not all of it. The number that matters
+      is how many of next year's defaults sit inside the fraction they can actually review.</p>
+      <p style="font-size:13.5px;color:var(--ink-2);margin:0 0 12px">Grades come from an
+      <strong>internal master scale</strong> carrying agency-style labels. They are not a claim
+      that this model's BBB is Standard &amp; Poor's BBB — the PD bands come from the scale design.</p>
+      <p style="font-size:13.5px;color:var(--ink-2);margin:0">PDs are isotonic-calibrated inside
+      each walk-forward fold, with a conservatism overlay on the lowest grades estimated on a
+      held-out prior year.</p>
+    </div>
+  </div>
+  <div class="caveat" id="caveat"></div>
+</section>
+
+<footer>
+  Panel: American Bankruptcy dataset (Pellegrino et al.), 1999–2018, repaired. Obligor identifiers
+  are anonymised in the source data.<br>
+  Walk-forward Gini 0.836 across 2012–2018 · scored with LightGBM, 5-seed mean · reason codes from
+  TreeSHAP.
+</footer>
+</div>
+
+<script>
+const DATA = __DATA__;
+const $ = s => document.querySelector(s);
+const fmtPct = v => (v * 100).toFixed(v < 0.001 ? 3 : v < 0.01 ? 2 : 1) + '%';
+const SEV = g => ['CCC-C'].includes(g) ? 'sev-bad' : ['B','BB'].includes(g) ? 'sev-watch' : 'sev-ok';
+const CAT = g => g.startsWith('CCC') || g === 'CC' || g === 'C' ? 'CCC-C' : g.replace(/[+-]$/,'');
+
+document.getElementById('yr').textContent = DATA.scored_year;
+
+/* ---- tiles ---- */
+const pct = DATA.decile_caught / DATA.n_defaults;
+const tiles = [
+  ['Obligors scored', DATA.n_obligors.toLocaleString(), 'fiscal ' + DATA.scored_year],
+  ['Subsequent defaults', DATA.n_defaults, 'observed in the following year'],
+  ['Caught in top decile', DATA.decile_caught + ' of ' + DATA.n_defaults,
+   (pct * 100).toFixed(0) + '% — reviewing ' + DATA.decile_n + ' names'],
+  ['Portfolio PD', fmtPct(DATA.portfolio_pd), 'observed ' + fmtPct(DATA.observed_rate)],
+  ['Gini', DATA.gini.toFixed(3), 'this cross-section'],
+];
+$('#tiles').innerHTML = tiles.map(([k, v, n]) =>
+  `<div class="tile"><dt>${k}</dt><dd>${v}</dd><div class="note">${n}</div></div>`).join('');
+
+/* ---- grade strip ---- */
+const maxN = Math.max(...DATA.categories.map(c => c.n));
+$('#grades').innerHTML =
+  `<div class="grow head"><span>Grade</span><span>Share of book</span>
+   <span class="num">Obligors</span><span class="num">Mean PD</span><span class="num">Defaults</span></div>` +
+  DATA.categories.map(c => `<div class="grow">
+    <span class="chip ${SEV(c.category)}">${c.category}</span>
+    <span class="bar"><i style="width:${(c.n / maxN * 100).toFixed(1)}%"></i></span>
+    <span class="num">${c.n.toLocaleString()}</span>
+    <span class="num">${fmtPct(c.mean_pd)}</span>
+    <span class="num strong">${c.defaults}</span></div>`).join('');
+
+/* ---- sectors ---- */
+$('#sectors').innerHTML = DATA.sectors.map(s => `<div class="srow">
+  <span class="nm" title="${s.sector}">${s.sector}</span>
+  <span class="v">${fmtPct(s.mean_pd)}</span>
+  <span class="n">${s.defaults}/${s.n}</span></div>`).join('');
+
+$('#caveat').textContent =
+  `Fiscal ${DATA.scored_year} is the panel's final year and its observed default rate of ` +
+  `${fmtPct(DATA.observed_rate)} runs above the portfolio PD of ${fmtPct(DATA.portfolio_pd)}. ` +
+  `The out-of-time conservatism overlay is floored at 1.0 and did not fire this year, because ` +
+  `the prior year it is estimated on came in below its own prediction. That is the overlay ` +
+  `behaving as designed — it never adjusts downward — but it is also the reason this particular ` +
+  `cross-section is under-predicted.`;
+
+/* ---- table ---- */
+const sectors = [...new Set(DATA.names.map(n => n.sector))].sort();
+const grades = [...new Set(DATA.names.map(n => n.grade))];
+$('#sector').insertAdjacentHTML('beforeend',
+  sectors.map(s => `<option value="${s}">${s}</option>`).join(''));
+$('#grade').insertAdjacentHTML('beforeend',
+  grades.map(g => `<option value="${g}">${g}</option>`).join(''));
+
+let sortKey = 'rank', sortDir = 1, open = new Set();
+
+function view() {
+  const q = $('#q').value.trim().toLowerCase();
+  const sec = $('#sector').value, gr = $('#grade').value, only = $('#defonly').checked;
+  let rows = DATA.names.filter(n =>
+    (!sec || n.sector === sec) && (!gr || n.grade === gr) && (!only || n.defaulted) &&
+    (!q || n.company.toLowerCase().includes(q) ||
+     n.reasons.some(r => r.toLowerCase().includes(q))));
+  rows.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
+  });
+  return rows;
+}
+
+function render() {
+  const rows = view();
+  $('#count').textContent = `${rows.length} of ${DATA.names.length} shown`;
+  $('#empty').hidden = rows.length > 0;
+  $('#rows').innerHTML = rows.map(n => {
+    const det = open.has(n.company);
+    return `<tr class="${det ? 'open' : ''}" data-c="${n.company}">
+      <td class="r">${n.rank}</td>
+      <td class="co">${n.company}</td>
+      <td class="sec">${n.sector}</td>
+      <td><span class="chip ${SEV(CAT(n.grade))}">${n.grade}</span></td>
+      <td class="pd">${fmtPct(n.pd)}</td>
+      <td class="why">${n.reasons[0] || '—'}${n.reasons[1] ? `<span class="why2">${n.reasons[1]}</span>` : ''}</td>
+      <td><span class="badge ${n.defaulted ? 'def' : 'ok'}">${n.defaulted ? 'DEFAULTED' : 'survived'}</span></td>
+    </tr>` + (det ? `<tr class="detail"><td colspan="7">
+      <ul class="reasons">${n.reasons.map(r => `<li>${r}</li>`).join('')}</ul></td></tr>` : '');
+  }).join('');
+  document.querySelectorAll('thead th.sortable').forEach(th => {
+    th.querySelector('.ind').textContent = th.dataset.k === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : '';
+  });
+}
+
+$('#rows').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-c]');
+  if (!tr) return;
+  const c = tr.dataset.c;
+  open.has(c) ? open.delete(c) : open.add(c);
+  render();
+});
+document.querySelectorAll('thead th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const k = th.dataset.k;
+    sortDir = k === sortKey ? -sortDir : (k === 'pd' || k === 'defaulted' ? -1 : 1);
+    sortKey = k; render();
+  });
+});
+['#q', '#sector', '#grade', '#defonly'].forEach(s =>
+  $(s).addEventListener('input', () => { open.clear(); render(); }));
+$('#reset').addEventListener('click', () => {
+  $('#q').value = ''; $('#sector').value = ''; $('#grade').value = '';
+  $('#defonly').checked = false; open.clear(); sortKey = 'rank'; sortDir = 1; render();
+});
+
+render();
+</script>
