@@ -146,3 +146,38 @@ def test_ladder_ranks_better_than_chance():
     r = pd.read_csv(lad)
     assert (r.gini > 0.4).all(), 'a rung is near chance - check for a singular design'
     assert r.gini.max() > 0.75
+
+
+# ------------------------------------------------------------------ calibration
+def test_master_scale_is_well_formed():
+    from calibrate import NOTCHES, EDGES, grade, CATEGORY
+    assert len(NOTCHES) == 21 and len(EDGES) == 20
+    assert (np.diff(EDGES) > 0).all(), 'PD bands must be increasing'
+    assert grade(np.array([0.0]))[0] == 'AAA'
+    assert grade(np.array([0.99]))[0] == 'C'
+    assert set(CATEGORY.values()) == {'AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC-C'}
+
+
+def test_wilson_interval_stays_in_the_unit_square():
+    from calibrate import wilson
+    for k, n in [(0, 10), (10, 10), (1, 3), (0, 1), (23, 117)]:
+        lo, hi = wilson(k, n)
+        assert 0.0 <= lo <= hi <= 1.0
+    assert np.isnan(wilson(0, 0)[0])
+
+
+def test_calibration_holds_at_portfolio_level():
+    p = pathlib.Path('outputs/calibrated_pd.csv')
+    if not p.exists():
+        pytest.skip('run `make calibrate` first')
+    r = pd.read_csv(p)
+    # mean predicted PD within 20% of the observed default rate
+    assert abs(r.pd.mean() / r.y.mean() - 1) < 0.20
+
+
+def test_rating_categories_are_monotone_in_observed_default_rate():
+    p = pathlib.Path('outputs/master_scale_categories.csv')
+    if not p.exists():
+        pytest.skip('run `make calibrate` first')
+    t = pd.read_csv(p)
+    assert t.observed.is_monotonic_increasing, 'a rating scale that inverts is not a scale'

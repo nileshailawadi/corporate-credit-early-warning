@@ -1,9 +1,9 @@
 PY := PYTHONPATH=src python3
 SRC := https://github.com/sowide/bankruptcy_dataset.git
 
-.PHONY: all data audit repair labels evaluate ladder leakage verify test clean
+.PHONY: all data audit repair labels evaluate ladder calibrate register leakage verify test clean
 
-all: repair labels evaluate ladder
+all: repair labels evaluate ladder calibrate
 
 data: data/raw_sowide/american_bankruptcy_dataset.csv
 
@@ -25,6 +25,12 @@ evaluate: outputs/labelled_panel.parquet
 
 ladder: outputs/labelled_panel.parquet
 	$(PY) src/ladder.py
+
+calibrate: outputs/labelled_panel.parquet
+	$(PY) src/calibrate.py
+
+register: outputs/labelled_panel.parquet
+	$(PY) src/external_register.py
 
 leakage: data
 	$(PY) src/leakage.py

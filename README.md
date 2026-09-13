@@ -48,6 +48,36 @@ them with a negative Altman Z″. The 37 labelled defaults of that era are also 
 −0.35) — the signature of a label set that caught only the most unambiguous cases. Training across
 that boundary teaches the model that deeply distressed firms survive.
 
+**Confirmed against an external register.** US Courts business Chapter 11 filing statistics are a
+complete administrative count. Ranking every year in both series, with no proportionality assumed:
+
+| Filing year | National Ch11 rank | Panel hazard rank | Panel hazard |
+|---|---|---|---|
+| 2001 | 3rd of 19 | **19th — last** | 0.13% |
+| 2002 | 4th | **18th** | 0.20% |
+| 2003 | 9th | 17th | 0.37% |
+| 2004 | 6th | 15th | 0.66% |
+| 2009 | 1st | 1st | 1.50% |
+| *median year* | — | — | 0.91% |
+
+2001 and 2002 were the third and fourth heaviest national filing years of the period. They are the
+two *lowest* default-rate years in the panel. That contradiction needs no modelling assumption to
+read. Scaling the panel's later capture rate back onto the national series implies roughly 190
+defaults over 2001–2003 against 34 observed — but that calculation assumes a proportionality that
+is itself weak over 2004–2018 (Spearman ρ = −0.07), so treat it as an order of magnitude, not a
+count. The rank comparison is the load-bearing evidence.
+
+One honest complication: filing year 2010 shows the same signature (2nd nationally, 16th in the
+panel) inside the supposedly reliable period. The plausible reading is population mix — listed-
+company defaults front-ran in 2008–09, where the panel ranks 2nd and 1st, while the 2010 national
+surge was driven by small private filers. It is not explained away, and it is why the cut year was
+settled empirically rather than by inspection.
+
+**Why the cut is fiscal 2003 and not 2004.** The register says capture is still depressed in fiscal
+2003 (filing year 2004). But excluding it costs more training volume than it recovers in label
+quality — fiscal 2003 beats 1999, 2004, 2005 and 2006 as a start year in 5 of 5 paired seed runs.
+The optimal cut is not the clean-label boundary; it is where the bias-variance trade-off lands.
+
 ---
 
 ## What fixing all three is worth
@@ -130,6 +160,71 @@ WOE-transformed inputs so that rung 4 differs from rung 2 *only* in the survival
 
 ---
 
+## Calibration and the rating scale
+
+A score that ranks is not a PD. Isotonic regression fitted **inside each fold** on cross-validated
+training predictions — calibrating on the model's own in-sample scores is the usual way this goes
+wrong, and it looks excellent right up until it is evaluated out of time.
+
+![calibration](docs/img/calibration.png)
+
+Across 22,755 obligor-years and 206 defaults: **mean predicted PD 0.875% against an observed default
+rate of 0.905%** — 3% out at portfolio level. The Murphy decomposition puts the reliability
+(miscalibration) term at 0.000025 of a Brier score of 0.008018 — 0.3%. Almost all remaining Brier is
+irreducible uncertainty, which is what a 0.9% base rate looks like.
+
+### 21 notches, attempted
+
+The scale is an **internal master scale wearing agency-style labels** — 21 grades, geometric PD
+bands at a ratio of 1.5 per notch. It is not a claim that this model's BBB is S&P's BBB; the bands
+come from the scale design, not from anyone's published default study. That distinction survives
+being asked about; the alternative does not.
+
+Attempted at notch level, the answer is that the data does not support it:
+
+- **10 of 21 notches carry fewer than 5 defaults**, and those notches hold **62% of the book**. The
+  entire investment-grade half of the scale is statistically empty.
+- Notch-level observed default rates are **not monotone** — BBB+ sits below A−, BB+ below BBB−, BB−
+  below BB. Those inversions are sampling noise, but a rating scale that inverts is not a scale.
+
+Rolled up to rating categories, it holds:
+
+| | Obligor-years | Defaults | Predicted PD | Observed | Wilson 95% CI |
+|---|---|---|---|---|---|
+| AAA | 24 | 0 | 0.005% | 0.000% | [0.00, 13.80] |
+| AA | 309 | 0 | 0.025% | 0.000% | [0.00, 1.23] |
+| A | 5,842 | 1 | 0.082% | 0.017% | [0.00, 0.10] |
+| BBB | 8,516 | 11 | 0.224% | 0.129% | [0.07, 0.23] |
+| BB | 4,813 | 28 | 0.763% | 0.582% | [0.40, 0.84] |
+| B | 2,412 | 59 | 2.480% | 2.446% | [1.90, 3.14] |
+| **CCC-C** | 839 | 107 | **9.378%** | **12.753%** | **[10.67, 15.18]** |
+
+Monotone in observed default rate, and six of seven categories contain their own predicted PD inside
+the observed interval.
+
+**The seventh is the one that matters.** CCC-C predicts 9.4% and defaults at 12.8%, with the
+interval excluding the prediction. The model under-states risk in the worst grade — the one a
+watchlist is built out of, and the one feeding any expected-loss number. Being conservative in the
+other direction would be unremarkable; this is a finding, and fixing it (a tail-weighted calibrator,
+or a separate calibration segment below B−) is the first item of unfinished work.
+
+### One-year migration, by category (row-normalised, %)
+
+| from ↓ to → | AAA | AA | A | BBB | BB | B | CCC-C |
+|---|---|---|---|---|---|---|---|
+| AAA | 14.3 | 38.1 | 47.6 | 0.0 | 0.0 | 0.0 | 0.0 |
+| AA | 3.6 | 33.1 | 60.5 | 2.0 | 0.0 | 0.8 | 0.0 |
+| A | 0.2 | 4.2 | 65.4 | 26.4 | 3.2 | 0.5 | 0.1 |
+| BBB | 0.0 | 0.1 | 20.6 | 54.5 | 19.5 | 4.5 | 0.7 |
+| BB | 0.0 | 0.0 | 3.2 | 31.2 | 42.4 | 19.2 | 4.0 |
+| B | 0.0 | 0.0 | 0.7 | 11.6 | 30.4 | 41.3 | 16.0 |
+| CCC-C | 0.0 | 0.0 | 0.2 | 5.5 | 15.8 | 36.4 | 42.1 |
+
+Diagonal-dominant with decay away from it, and stickiest at the ends — the shape an agency
+transition matrix has. The AAA row rests on 21 observations and should not be read.
+
+---
+
 ## Honest limitations
 
 - **The repair's integrity case is closed; its performance case is not.** Identities go from 0.56 to
@@ -141,9 +236,15 @@ WOE-transformed inputs so that rung 4 differs from rung 2 *only* in the survival
 - **Exits are pooled as one censoring event.** The data cannot distinguish acquisition from
   delisting from loss of coverage. If exit correlates with credit quality, the hazard is biased.
   Treating exits as survivals — the alternative — is strictly worse.
-- **Default capture is low in absolute terms even after 2003.** Roughly 1% of firm-years, against a
-  panel of listed companies — plausible, but not cross-checked against an external filings register.
-  That cross-check is the single most valuable thing still missing.
+- **CCC-C is miscalibrated.** 9.4% predicted against 12.8% observed, interval excluding the
+  prediction. Under-stating risk in the worst grade is the wrong direction to be wrong in.
+- **The notch scale is presented as a negative result.** 10 of 21 notches hold fewer than 5
+  defaults. Use the categories.
+- **The external register is a different population.** US Courts counts every business Chapter 11
+  filer, private companies included. The rank comparison survives that; the implied-shortfall
+  estimate does not, and is labelled accordingly.
+- **Reason codes are not built yet.** SHAP attributions mapped to analyst-readable text is the
+  remaining half of W5.
 
 ### A note on seeds
 
@@ -165,8 +266,8 @@ make all
 ```
 
 `make all` clones the source panel, runs the audit, repairs the scale corruption, builds
-point-in-time labels, runs the walk-forward evaluation and fits the model ladder. Roughly 20
-minutes on a laptop.
+point-in-time labels, runs the walk-forward evaluation, fits the model ladder and calibrates the
+rating scale. Roughly 35 minutes on a laptop.
 
 Individual stages:
 
@@ -177,6 +278,8 @@ make repair     # -> outputs/clean_panel.parquet
 make labels     # -> outputs/labelled_panel.parquet
 make evaluate   # walk-forward results
 make ladder     # the four-rung model comparison
+make calibrate  # calibrated PDs, master scale, migration matrix
+make register   # external validation of the label-capture finding
 make test       # pytest
 ```
 
@@ -191,6 +294,8 @@ src/
   leakage.py         the four-arm evaluation-design experiment
   evaluate.py        walk-forward protocol and the label-capture test
   ladder.py          the four-rung model comparison, WOE scorecard included
+  calibrate.py       isotonic calibration, 21-notch master scale, migration matrix
+  external_register.py  Finding 04 against US Courts Chapter 11 filing statistics
   verify_repair.py   does the repair change anything that matters?
 tests/               invariants the repair and labels must satisfy
 docs/findings.md     the audit written up in full
