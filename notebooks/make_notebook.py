@@ -48,17 +48,23 @@ import numpy as np, pandas as pd, warnings, itertools, os, subprocess
 warnings.filterwarnings('ignore')
 pd.set_option('display.width', 200)
 
-KAGGLE = '/kaggle/input/american-companies-bankruptcy-prediction-dataset/american_bankruptcy.csv'
-if os.path.exists(KAGGLE):
-    raw = pd.read_csv(KAGGLE)
+# Works either with the Kaggle dataset attached, or standalone from the source repo.
+# Globbed rather than hard-coded, because the mirror's filename is not guaranteed stable.
+import glob
+found = sorted(glob.glob('/kaggle/input/**/*.csv', recursive=True))
+found = [f for f in found if 'bankrupt' in f.lower() or 'american' in f.lower()] or found
+if found:
+    print('reading', found[0])
+    raw = pd.read_csv(found[0])
 else:
     if not os.path.exists('bankruptcy_dataset'):
         subprocess.run(['git', 'clone', '--depth', '1', '-q',
                         'https://github.com/sowide/bankruptcy_dataset.git'], check=True)
     raw = pd.read_csv('bankruptcy_dataset/american_bankruptcy_dataset.csv')
 
-raw = raw.rename(columns={'year': 'fyear'})
+raw = raw.rename(columns={'year': 'fyear'})          # the two mirrors name this differently
 raw['fyear'] = raw['fyear'].astype(int)
+assert {'company_name', 'status_label', 'fyear'} <= set(raw.columns), sorted(raw.columns)[:8]
 print(f'{len(raw):,} firm-years · {raw.company_name.nunique():,} companies · '
       f'{raw.fyear.min()}-{raw.fyear.max()}')
 """)

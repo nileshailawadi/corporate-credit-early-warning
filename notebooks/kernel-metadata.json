@@ -1,0 +1,16 @@
+{
+  "id": "nileshailawadi/three-defects-in-the-american-bankruptcy-dataset",
+  "title": "Three defects in the American Bankruptcy dataset",
+  "code_file": "three-defects-in-the-american-bankruptcy-dataset.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_internet": "false",
+  "dataset_sources": [
+    "utkarshx27/american-companies-bankruptcy-prediction-dataset"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "model_sources": []
+}
