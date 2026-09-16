@@ -1,7 +1,7 @@
 PY := PYTHONPATH=src python3
 SRC := https://github.com/sowide/bankruptcy_dataset.git
 
-.PHONY: all data audit repair labels evaluate ladder calibrate tail watchlist register leakage verify notebook test clean
+.PHONY: all data audit repair labels evaluate ladder calibrate tail watchlist dashboard register leakage verify notebook test clean
 
 all: repair labels evaluate ladder calibrate tail watchlist
 
@@ -34,6 +34,9 @@ tail: outputs/labelled_panel.parquet
 
 watchlist: outputs/labelled_panel.parquet
 	$(PY) src/watchlist.py
+
+dashboard: outputs/dashboard_data.json
+	$(PY) docs/build_dashboard.py
 
 notebook:
 	$(PY) notebooks/make_notebook.py
