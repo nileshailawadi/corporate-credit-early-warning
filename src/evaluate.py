@@ -58,6 +58,29 @@ def run(d, F, start, horizon=1, seeds=SEEDS):
     return r, (np.concatenate(pooled_p), np.concatenate(pooled_y), np.concatenate(pooled_T))
 
 
+def walk(d, F, start, seed, horizon=1):
+    """One seed's walk-forward: fold-level Gini and top-decile capture for each test year.
+
+    Reported as a plain mean across folds rather than weighted by default count, so that
+    2008 - which carries three times the defaults of a quiet year - cannot dominate the
+    headline. Each fold is an independent annual cross-section and counts once.
+    """
+    y = d[f'y_{horizon}y']
+    rows = []
+    for T, tr, te in folds(d, start, horizon=horizon):
+        yt = y[te].to_numpy()
+        m = lgb.LGBMClassifier(**{**PARAMS, 'random_state': seed}).fit(F[tr], y[tr])
+        p = m.predict_proba(F[te])[:, 1]
+        k = max(int(0.10 * int(te.sum())), 1)
+        rows.append(dict(test_year=T, defaults=int(yt.sum()),
+                         gini=2 * roc_auc_score(yt, p) - 1,
+                         pr_auc=average_precision_score(yt, p),
+                         capture=float(yt[np.argsort(-p)[:k]].sum() / yt.sum())))
+    r = pd.DataFrame(rows)
+    return dict(gini=r.gini.mean(), capture=r.capture.mean(), pr_auc=r.pr_auc.mean(),
+                min_gini=r.gini.min(), folds=len(r), defaults=int(r.defaults.sum()))
+
+
 def summarise(r, pooled, label):
     p, y, T = pooled
     # pooled Gini computed within-year then averaged by default count, so that a year
@@ -82,36 +105,61 @@ def cluster_boot(pa, pb, y, grp, n=600, seed=7):
     return np.array(out)
 
 
+STARTS = (1999, 2003, 2006)
+
 if __name__ == '__main__':
-    d = pd.read_parquet('outputs/labelled_panel.parquet').reset_index(drop=True)
-    F, d = features(d)
-    F = F.reset_index(drop=True); d = d.reset_index(drop=True)
+    raw = pd.read_parquet('outputs/labelled_panel.parquet').reset_index(drop=True)
 
-    print('WALK-FORWARD, 1-YEAR HORIZON, TEST YEARS 2012-2018')
-    print('varying the first fiscal year admitted to training\n')
-    summ, keep = [], {}
-    for start, lab in [(1999, '1999 (all)'), (2003, '2003 (reliable)'), (2006, '2006')]:
-        r, pooled = run(d, F, start)
-        keep[start] = (r, pooled)
-        summ.append(summarise(r, pooled, lab))
-        print(f'--- train from {lab}')
-        print(r.round(4).to_string(index=False))
-        print()
+    # ---- the start-year experiment, both feature sets, five seeds
+    grid = []
+    for ext in (False, True):
+        F, d = features(raw, extended=ext)
+        F, d = F.reset_index(drop=True), d.reset_index(drop=True)
+        for start in STARTS:
+            for s in SEEDS:
+                grid.append(dict(features='extended' if ext else 'core', seed=s,
+                                 start=start, **walk(d, F, start, s)))
+                print('.', end='', flush=True)
+    g = pd.DataFrame(grid)
+    g.to_csv('outputs/start_year.csv', index=False)
 
-    s = pd.DataFrame(summ).set_index('train_from')
-    print('SUMMARY (default-weighted across folds)')
-    print(s.round(4).to_string())
+    pd.set_option('display.width', 200)
+    print(f'\n\nWALK-FORWARD, 1-YEAR HORIZON, TEST YEARS 2012-2018')
+    print(f'{int(g.defaults.iloc[0])} defaults across {int(g.folds.iloc[0])} annual folds, '
+          f'{len(SEEDS)} seeds\n')
+    tab = g.groupby(['features', 'start'])[['gini', 'capture']].agg(['mean', 'std'])
+    print(tab.round(4).to_string())
 
-    # is 2003 better than 1999, beyond noise?
-    (_, (p99, y99, _)), (_, (p03, y03, _)) = keep[1999], keep[2003]
+    # ---- is dropping 1999-2002 from training a real improvement, or seed noise?
+    # Paired within (features, seed): the same learner on the same folds, one difference.
+    base = g[g.start == 1999].set_index(['features', 'seed']).gini
+    print('\npaired delta vs start=1999')
+    for start in STARTS[1:]:
+        alt = g[g.start == start].set_index(['features', 'seed']).gini
+        delta = (alt - base).dropna()
+        print(f'  {start}: {delta.mean():+.4f}   positive in {int((delta > 0).sum())}'
+              f'/{len(delta)} paired runs')
+
+    # ---- fold detail for the chosen configuration, and a bootstrap on the same question
+    F, d = features(raw)
+    F, d = F.reset_index(drop=True), d.reset_index(drop=True)
+    r03, (p03, y03, _) = run(d, F, 2003)
+    _,   (p99, y99, _) = run(d, F, 1999)
+    print('\nFOLD DETAIL, core features, train from 2003 (5 seeds averaged per fold)')
+    print(r03.round(4).to_string(index=False))
+    r03.to_csv('outputs/walk_forward_folds.csv', index=False)
+
+    # resampling obligors, not rows: a firm's years are not independent observations
     assert (y99 == y03).all(), 'fold alignment mismatch'
     grp = np.concatenate([d.company_name[te].to_numpy() for _, _, te in folds(d, 2003)])
     delta = cluster_boot(p99, p03, y99, grp)
     obs = 2 * roc_auc_score(y03, p03) - 2 * roc_auc_score(y99, p99)
-    print(f'\ndropping 1999-2002 from training:  delta-Gini {obs:+.4f}'
-          f'   95% CI [{np.percentile(delta,2.5):+.4f}, {np.percentile(delta,97.5):+.4f}]'
-          f'   P(improve) {(delta>0).mean():.3f}')
-    print(f'(pooled over {int(y03.sum())} defaults across {len(keep[2003][0])} folds)')
+    print(f'\npooled delta-Gini from dropping 1999-2002: {obs:+.4f}'
+          f'   95% CI [{np.percentile(delta, 2.5):+.4f}, {np.percentile(delta, 97.5):+.4f}]'
+          f'   P(improve) {(delta > 0).mean():.3f}')
+    print(f'(cluster bootstrap over obligors, {int(y03.sum())} defaults)')
 
-    s.to_csv('outputs/walk_forward_summary.csv')
-    keep[2003][0].to_csv('outputs/walk_forward_folds.csv', index=False)
+    (g.groupby(['features', 'start'])[['gini', 'capture', 'pr_auc', 'min_gini']]
+       .agg(['mean', 'std']).round(6).to_csv('outputs/walk_forward_summary.csv'))
+    print('\nwrote outputs/start_year.csv, outputs/walk_forward_folds.csv, '
+          'outputs/walk_forward_summary.csv')

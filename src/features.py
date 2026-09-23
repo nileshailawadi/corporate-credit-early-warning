@@ -15,11 +15,12 @@ def build(d: pd.DataFrame, extended: bool = False):
     """
     Returns (features, panel) with the panel re-sorted to match the feature index.
 
-    `extended=False` is the 25-feature core set every headline number in this repo was
-    produced with.  `extended=True` adds efficiency ratios and industry-relative
-    z-scores; it did NOT improve walk-forward performance (mean Gini 0.823 either way,
-    worst fold 0.717 vs 0.786) and is kept for the W3 feature-selection work rather
-    than because it helps.
+    `extended=False` is the 32-feature core set every headline number in this repo was
+    produced with.  `extended=True` adds seven efficiency ratios and industry-relative
+    z-scores.  Over five seeds and three training windows the two sets are within a
+    couple of thousandths of each other on walk-forward Gini - the extended set is not
+    worth the extra surface, and the fact that a single-seed run once made it look
+    clearly worse is why every comparison in this repo is seed-averaged.
     """
     d = d.sort_values(['company_name', 'fyear']).copy()
     ta = d.total_assets.abs() + EPS

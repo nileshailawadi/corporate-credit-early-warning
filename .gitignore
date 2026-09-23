@@ -3,8 +3,24 @@ __pycache__/
 .ipynb_checkpoints/
 .venv/
 venv/
+.DS_Store
+
+# The Kaggle file is not redistributed here - see the Makefile.
 data/*
 !data/.gitkeep
+
+# Intermediate artefacts and run logs are not tracked; the small result tables are, so a
+# reader can check any number in the README without running the 100-minute pipeline.
 outputs/*
 !outputs/.gitkeep
-.DS_Store
+!outputs/leakage_experiment.csv
+!outputs/leakage_summary.csv
+!outputs/start_year.csv
+!outputs/walk_forward_folds.csv
+!outputs/walk_forward_summary.csv
+!outputs/model_ladder.csv
+!outputs/master_scale_categories.csv
+!outputs/master_scale_notches.csv
+!outputs/oot_multipliers.csv
+!outputs/external_register.csv
+!outputs/direction_check.csv

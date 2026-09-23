@@ -116,7 +116,6 @@ def walk_forward(d, first_test=2012, last_test=PANEL_END, horizon=1, min_train=8
 
 
 if __name__ == '__main__':
-    from audit import load
     import sys
     src = sys.argv[1] if len(sys.argv) > 1 else 'outputs/clean_panel.parquet'
     d = build(pd.read_parquet(src))

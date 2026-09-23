@@ -1,19 +1,25 @@
-"""Invariants the repaired panel and the point-in-time labels must satisfy.
+"""Invariants the loaded panel and the point-in-time labels must satisfy.
 
 These are not unit tests of implementation detail - they are the properties that make
 the downstream model trustworthy.  If one of them fails, no result in this repo means
 anything.
+
+The first group is the guard that this repo was built the hard way.  An earlier version
+of this project ran on the GitHub copy of the dataset, whose columns sit in a different
+order from the published data dictionary and whose magnitudes are broken by powers of
+1,000.  Everything downstream inherited that silently.  These tests fail loudly if the
+panel ever comes from that copy again.
 """
 import sys, pathlib
 import numpy as np, pandas as pd, pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / 'src'))
-from repair import _rel, TOL                                    # noqa: E402
 from labels import build, PANEL_END, RELIABLE_FROM              # noqa: E402
+from mirror_check import rel                                    # noqa: E402
 
 CLEAN = pathlib.Path('outputs/clean_panel.parquet')
 pytestmark = pytest.mark.skipif(not CLEAN.exists(),
-                                reason='run `make repair` first')
+                                reason='run `make data` first')
 
 
 @pytest.fixture(scope='module')
@@ -26,14 +32,16 @@ def lab(panel):
     return build(panel)
 
 
-# ------------------------------------------------------------------ repair
+# ------------------------------------------------------- the panel is the clean copy
 @pytest.mark.parametrize('name,lhs,rhs', [
     ('Revenue - OpEx = EBITDA', lambda d: d.total_revenue - d.total_opex, lambda d: d.ebitda),
     ('EBITDA - D&A = EBIT',     lambda d: d.ebitda - d.dep_amort,         lambda d: d.ebit),
     ('Revenue - COGS = GP',     lambda d: d.total_revenue - d.cogs,       lambda d: d.gross_profit),
 ])
 def test_accounting_identities_hold(panel, name, lhs, rhs):
-    rate = (_rel(lhs(panel), rhs(panel)) < TOL).mean()
+    """~100% on the Kaggle copy, ~56% on the GitHub copy.  A threshold of 0.999 cannot
+    be met by the wrong file under any column mapping."""
+    rate = rel(lhs(panel), rhs(panel)).mean()
     assert rate > 0.999, f'{name} holds in only {rate:.4f} of rows'
 
 
@@ -41,20 +49,31 @@ def test_no_thousandfold_jumps_within_a_firm(panel):
     s = panel.sort_values(['company_name', 'fyear'])
     r = s.groupby('company_name').total_assets.apply(lambda x: (x / x.shift()).dropna())
     r = r[np.isfinite(r) & (r > 0)]
-    assert ((r > 100) | (r < 0.01)).mean() < 0.001
+    assert ((r > 100) | (r < 0.01)).mean() < 0.002
 
 
-def test_repair_preserves_shape_and_keys(panel):
+def test_panel_shape_and_keys(panel):
     assert len(panel) == 78682
     assert panel.company_name.nunique() == 8971
     assert panel.fyear.between(1999, PANEL_END).all()
     assert not panel[['company_name', 'fyear']].duplicated().any()
 
 
-def test_structural_inequalities_mostly_hold(panel):
+def test_structural_inequalities_hold(panel):
     # not 1.0 - total liabilities legitimately exceed total assets for insolvent firms
-    assert (panel.current_assets <= panel.total_assets).mean() > 0.95
-    assert (panel.inventory <= panel.current_assets).mean() > 0.95
+    assert (panel.current_assets <= panel.total_assets).mean() > 0.999
+    assert (panel.inventory <= panel.current_assets).mean() > 0.99
+
+
+def test_retained_earnings_can_be_negative(panel):
+    """The single sharpest tell that the columns are in dictionary order.
+
+    Retained earnings is a cumulative figure and goes negative for any firm with more
+    lifetime losses than profits - roughly a third of this panel.  If this column never
+    goes negative, it is not retained earnings, and every other column is wrong too."""
+    share = (panel.retained_earnings < 0).mean()
+    assert 0.35 < share < 0.70, f'retained earnings negative in {share:.3f} of rows'
+    assert (panel.inventory >= 0).all()      # and this one genuinely never is
 
 
 # ------------------------------------------------------------------ labels

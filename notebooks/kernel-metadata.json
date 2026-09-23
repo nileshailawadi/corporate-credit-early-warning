@@ -1,7 +1,7 @@
 {
-  "id": "nileshailawadi/three-defects-in-the-american-bankruptcy-dataset",
-  "title": "Three defects in the American Bankruptcy dataset",
-  "code_file": "three-defects-in-the-american-bankruptcy-dataset.ipynb",
+  "id": "nileshailawadi/label-leakage-in-the-american-bankruptcy-dataset",
+  "title": "Label leakage in the American Bankruptcy dataset",
+  "code_file": "label-leakage-in-the-american-bankruptcy-dataset.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": "true",
