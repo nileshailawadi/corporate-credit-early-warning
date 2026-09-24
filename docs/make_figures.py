@@ -17,7 +17,8 @@ OUT = ROOT / 'docs/img'
 OUT.mkdir(parents=True, exist_ok=True)
 
 INK, MUTED, GRID = '#16202c', '#8a97a6', '#dfe4ea'
-BLUE, SLATE, RED, GREEN = '#2b6cb0', '#a8b6c5', '#c53030', '#2f855a'
+TITLE_PAD = 26          # room for the legend row above panel 2; kept equal so titles align
+BLUE, SLATE, RED, AMBER = '#2b6cb0', '#a8b6c5', '#c53030', '#f0a202'
 
 plt.rcParams.update({
     'figure.dpi': 160, 'savefig.dpi': 160, 'font.size': 9,
@@ -54,7 +55,7 @@ def panel_arms(ax):
     ax.set_xlabel('evaluation design (identical model and features)', fontsize=8.5, color=MUTED)
     ax.set_ylabel('Gini')
     ax.set_ylim(0, 1.0)
-    ax.set_title('Half of arm A is the split, not the model')
+    ax.set_title('Half of arm A is the split, not the model', pad=TITLE_PAD)
     _bare(ax)
     return g
 
@@ -63,19 +64,24 @@ def panel_ladder(ax):
     """Each rung against the one below it, on two metrics that disagree."""
     r = pd.read_csv(ROOT / 'outputs/model_ladder.csv')
     names = ['Altman Z″\n(unfitted)', 'WOE\nscorecard', 'LightGBM', 'Discrete-time\nhazard']
-    x = np.arange(len(r)); w = 0.38
-    ax.bar(x - w / 2, r.gini, w, color=BLUE, label='Gini', zorder=3)
-    ax.bar(x + w / 2, r.top_decile, w, color='#f0a202', label='capture in top decile', zorder=3)
-    ax.errorbar(x - w / 2, r.gini, yerr=r.gini_sd, fmt='none', ecolor=INK, lw=1, capsize=2, zorder=4)
+    x = np.arange(len(r)); w, gap = 0.37, 0.02      # 2px of surface between the pair
+    off = w / 2 + gap / 2
+    ax.bar(x - off, r.gini, w, color=BLUE, label='Gini', zorder=3)
+    ax.bar(x + off, r.top_decile, w, color=AMBER, label='capture in top decile', zorder=3)
+    ax.errorbar(x - off, r.gini, yerr=r.gini_sd, fmt='none', ecolor=INK, lw=1, capsize=2, zorder=4)
     for i in range(len(r)):
-        ax.text(i - w / 2, r.gini[i] + 0.025, f'{r.gini[i]:.3f}', ha='center', fontsize=7.5, color=MUTED)
-        ax.text(i + w / 2, r.top_decile[i] + 0.025, f'{r.top_decile[i]:.2f}', ha='center',
+        ax.text(i - off, r.gini[i] + 0.025, f'{r.gini[i]:.3f}', ha='center', fontsize=7.5, color=MUTED)
+        ax.text(i + off, r.top_decile[i] + 0.025, f'{r.top_decile[i]:.2f}', ha='center',
                 fontsize=7.5, color=MUTED)
     ax.set_xticks(x); ax.set_xticklabels(names, fontsize=8)
     ax.set_xlabel('model, walk-forward 2012–2018', fontsize=8.5, color=MUTED)
     ax.set_ylim(0, 1.05)
-    ax.legend(frameon=False, fontsize=8, loc='lower right', ncol=1)
-    ax.set_title('Boosting buys nothing on clean data')
+    # The legend sits above the plot, never over it. Inside the axes it collided with the
+    # LightGBM bars, which is the one place a reader is being asked to compare two numbers.
+    ax.set_title('Boosting buys nothing on clean data', pad=TITLE_PAD)
+    ax.legend(frameon=False, fontsize=8, ncol=2, loc='lower left',
+              bbox_to_anchor=(0, 1.0), borderaxespad=0, handlelength=1.1,
+              handleheight=0.9, columnspacing=1.4, handletextpad=0.5)
     _bare(ax)
 
 
@@ -106,7 +112,7 @@ def panel_gains(ax):
     ax.set_xlabel(f'share of the FY2018 book reviewed, worst PD first ({n:,} obligors)',
                   fontsize=8.5, color=MUTED)
     ax.set_ylabel('share of next year’s defaults caught')
-    ax.set_title('A credit team reviews 10% and catches 83%')
+    ax.set_title('A credit team reviews 10% and catches 83%', pad=TITLE_PAD)
     ax.grid(color=GRID, lw=0.7, zorder=0); ax.set_axisbelow(True)
     ax.tick_params(length=0); ax.spines['left'].set_visible(False)
 
