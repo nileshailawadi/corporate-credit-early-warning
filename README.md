@@ -87,8 +87,8 @@ Mean ± sd over 5 seeds, on the clean file:
 
 | Arm | Target | Split | Gini | Top-decile capture | Accuracy |
 |---|---|---|---|---|---|
-| A | ever-fails | random rows *(the published setup)* | 0.697 ± 0.010 | 0.480 ± 0.007 | 93.8% |
-| B | ever-fails | obligors held out | 0.485 ± 0.034 | 0.331 ± 0.013 | 93.0% |
+| A | ever-fails | random rows *(the published setup)* | 0.697 ± 0.010 | 0.479 ± 0.006 | 93.8% |
+| B | ever-fails | obligors held out | 0.485 ± 0.034 | 0.331 ± 0.012 | 93.0% |
 | C | ever-fails | held out + out-of-time | 0.357 ± 0.016 | 0.270 ± 0.018 | 97.5% |
 | **D** | **12-month PD** | **held out + out-of-time** | **0.813 ± 0.005** | **0.721 ± 0.016** | 99.0% |
 
@@ -284,8 +284,19 @@ docs/
   make_figures.py    rebuilds the README charts from the output CSVs
   build_dashboard.py injects the scored book into the page template
   index.html         the live watchlist, served by GitHub Pages
-tests/               24 invariants the panel, the labels and the models must satisfy
+tests/
+  test_pipeline.py   24 invariants the panel, the labels and the models must satisfy
+  test_readme_numbers.py  asserts every figure quoted above against the table that made it
 ```
+
+### The README is under test
+
+`tests/test_readme_numbers.py` asserts each headline number in this file against the result
+table it came from, and the result tables are tracked, so the 22 checks run from a clean clone
+without the dataset present. It exists because the failure mode it guards against happened
+here: the repo was rebuilt on a different copy of the data, every number moved, and the prose,
+the charts and a published notebook went on quoting the old ones. A figure in this README that
+no table supports is now a failing test rather than something a reader has to catch.
 
 ## Citation
 

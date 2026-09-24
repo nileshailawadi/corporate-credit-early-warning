@@ -373,9 +373,9 @@ training set carrying the same answer. That gap is the leakage, measured.
 **Moving out of time costs another 8.** Arms B to C. Together, two-fifths of what arm A
 reports is the evaluation design rather than the model.
 
-**Arm B's spread is six times arm A's**, because the seed here picks the obligors as well as
-the trees. Which firms land in the test set matters more than anything about the learner —
-another reason a single split is not a result.
+**Arm B's spread is four to five times arm A's**, because the seed here picks the obligors as
+well as the trees. Which firms land in the test set matters more than anything about the
+learner — another reason a single split is not a result.
 
 **Arm D is the one that matters.** Re-posing the target as a genuine twelve-month default,
 on the same hard split as arm C, takes Gini to 0.80 and top-decile capture from 30% to 72%.

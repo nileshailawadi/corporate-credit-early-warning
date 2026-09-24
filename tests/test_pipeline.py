@@ -186,12 +186,18 @@ def test_wilson_interval_stays_in_the_unit_square():
 
 
 def test_calibration_holds_at_portfolio_level():
-    p = pathlib.Path('outputs/calibrated_pd.csv')
+    """Read off the tracked category table rather than the full scored file, so this runs
+    from a clean clone without re-running the pipeline."""
+    p = pathlib.Path('outputs/master_scale_categories.csv')
     if not p.exists():
         pytest.skip('run `make calibrate` first')
-    r = pd.read_csv(p)
+    t = pd.read_csv(p)
+    w = t.obligor_years
+    predicted = (t.mean_pd * w).sum() / w.sum()
+    observed = t.defaults.sum() / w.sum()
+    assert int(w.sum()) > 20000 and int(t.defaults.sum()) > 150
     # mean predicted PD within 20% of the observed default rate
-    assert abs(r.pd.mean() / r.y.mean() - 1) < 0.20
+    assert abs(predicted / observed - 1) < 0.20, f'{predicted:.5f} vs {observed:.5f}'
 
 
 def test_rating_categories_are_monotone_in_observed_default_rate():
